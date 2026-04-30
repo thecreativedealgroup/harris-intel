@@ -1,0 +1,78 @@
+name: Daily Lead Scraper
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC = 02:00 CST
+  workflow_dispatch:        # manual trigger from Actions UI
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ── Python setup ─────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      # ── Playwright ────────────────────────────────────────────────────────
+      - name: Install Playwright browsers
+        run: python -m playwright install --with-deps chromium
+
+      # ── Scrape ───────────────────────────────────────────────────────────
+      - name: Run scraper
+        run: python scraper/fetch.py
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      # ── Commit results ────────────────────────────────────────────────────
+      - name: Commit updated records
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dashboard/records.json data/records.json data/ghl_export_*.csv || true
+          git diff --cached --quiet || git commit -m "chore: daily scrape $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
+
+  # ── Deploy dashboard to GitHub Pages ────────────────────────────────────
+  deploy-pages:
+    needs: scrape
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main          # pick up the commit pushed above
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload dashboard artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
