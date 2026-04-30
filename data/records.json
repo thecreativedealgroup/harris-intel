@@ -1,1 +1,11 @@
-{"fetched_at":null,"records":[]}
+{
+  "fetched_at": "2026-04-30T04:36:33.715942+00:00",
+  "source": "Harris County Clerk",
+  "date_range": {
+    "start": "04/23/2026",
+    "end": "04/30/2026"
+  },
+  "total": 0,
+  "with_address": 0,
+  "records": []
+}
